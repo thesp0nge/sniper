@@ -6,11 +6,11 @@ require 'sniper/version'
 Gem::Specification.new do |spec|
   spec.name          = "sniper"
   spec.version       = Sniper::VERSION
-  spec.authors       = Paolo Perego
-  spec.email         = paolo@codiceinsicuro.it
+  spec.authors       = "Paolo Perego"
+  spec.email         = "paolo@codiceinsicuro.it"
 
-  spec.summary       = Sniper is a network discovery and reconnaissance tool
-  spec.description   = Sniper is a network discovery and reconnaissance tool
+  spec.summary       = "Sniper is a network discovery and reconnaissance tool"
+  spec.description   = "Sniper is a network discovery and reconnaissance tool"
   spec.homepage      = "https://github.com/thesp0nge/sniper"
   spec.license       = "MIT"
 
