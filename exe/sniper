@@ -1,3 +1,57 @@
 #!/usr/bin/env ruby
 
 require "sniper"
+require "nmap"
+
+# RUN THE FIRST SCAN
+#Nmap::Program.sudo_scan do |nmap|
+#  nmap.syn_scan = true
+#  nmap.service_scan = true
+#  nmap.os_fingerprint = true
+#  nmap.xml = 'scan.xml'
+#  nmap.verbose = false
+#  nmap.quiet = true
+#
+#  nmap.targets = "10.73.22.34"
+#end
+
+
+Nmap::XML.new('scan.xml') do |xml|
+  xml.each_host do |host|
+    puts "[#{host.ip}]"
+
+    host.each_port do |port|
+      if port.service.to_s.downcase.include? "ssh"
+        Nmap::Program.sudo_scan do |nmap|
+          nmap.service_scan = true
+          nmap.xml = 'ssh_scan.xml'
+          nmap.verbose = false
+          nmap.ports = port
+          nmap.script ="ssh-hostkey.nse, ssh2-enum-algos.nse, sshv1.nse"
+          nmap.quiet = true
+          nmap.targets = "10.73.22.34"
+        end
+        Nmap::XML.new('ssh_scan.xml') do |xml|
+          xml.each_host do |host|
+            puts "[#{host.ip}]"
+
+            host.scripts.each do |name,output|
+              output.each_line { |line| puts "  #{line}" }
+            end
+            host.each_port do |port|
+              puts "  [#{port.number}/#{port.protocol}]"
+              port.scripts.each do |name,output|
+                puts "    [#{name}]"
+                output.each_line { |line| puts "      #{line}" }
+              end
+            end
+
+          end
+        end
+      else
+        puts "  #{port.number}/#{port.protocol}\t#{port.state}\t#{port.service}"
+      end
+    end
+  end
+end
+  #nmap.script = "http-wordpress-enum.nse"
