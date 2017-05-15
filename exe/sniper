@@ -3,6 +3,7 @@
 require "sniper"
 require "nmap"
 require "fileutils"
+require "logger"
 
 if ARGV.count != 1
   raise "usage: sniper ip"
@@ -11,62 +12,55 @@ end
 
 ip = ARGV[0]
 
+# BASEDIR=File.join(Dir.home, "sniper", ip, Time.now.strftime("%Y%m%d_%H%M%S"))
 BASEDIR=File.join(Dir.home, "sniper", ip)
 DISCOVERY_SCAN = File.join(BASEDIR, "discovery_scan.xml")
 SSH_SCAN = File.join(BASEDIR, "ssh_scan.xml")
+FTP_SCAN = File.join(BASEDIR, "ftp_scan.xml")
+HTTP_SCAN = File.join(BASEDIR, "http_scan.xml")
+TEMPLATEDIR=File.join(Dir.home, "sniper", "templates")
 
+$logger = Logger.new(STDERR)
+$logger.datetime_format = '%Y-%m-%d %H:%M:%S'
 
+$logger.helo "sniper", Sniper::VERSION
+
+$logger.info "scanning #{ip}"
+$logger.debug "storing results in #{BASEDIR}"
 FileUtils.mkdir_p(BASEDIR)
 
-# RUN THE FIRST SCAN
-Nmap::Program.sudo_scan do |nmap|
-  nmap.syn_scan = true
-  nmap.service_scan = true
-  nmap.os_fingerprint = true
-  nmap.xml = DISCOVERY_SCAN
-  nmap.verbose = false
-  nmap.quiet = true
 
-  nmap.targets = ip
-end
-
+# Sniper::do_first_scan(ip)
 
 Nmap::XML.new(DISCOVERY_SCAN) do |xml|
+
   xml.each_host do |host|
-    puts "[#{host.ip}]"
+
+    h = Sniper::Host.new({:ip=>ip, :hostname=>host.hostname.name, :os=>host.os.entries.first.name})
 
     host.each_port do |port|
-      if port.service.to_s.downcase.include? "ssh"
-        Nmap::Program.sudo_scan do |nmap|
-          nmap.service_scan = true
-          nmap.xml = SSH_SCAN
-          nmap.verbose = false
-          nmap.ports = port
-          nmap.script ="ssh-hostkey.nse, ssh2-enum-algos.nse, sshv1.nse"
-          nmap.quiet = true
-          nmap.targets = ip
-        end
-        Nmap::XML.new(SSH_SCAN) do |xml|
-          xml.each_host do |host|
-            puts "[#{host.ip}]"
 
-            host.scripts.each do |name,output|
-              output.each_line { |line| puts "  #{line}" }
-            end
-            host.each_port do |port|
-              puts "  [#{port.number}/#{port.protocol}]"
-              port.scripts.each do |name,output|
-                puts "    [#{name}]"
-                output.each_line { |line| puts "      #{line}" }
-              end
-            end
-
-          end
-        end
-      else
-        puts "  #{port.number}/#{port.protocol}\t#{port.state}\t#{port.service}"
+      #
+      # TODO: Big inefficiency here. If there are 2 different daemons for the
+      # same protocol, tests are performed twice
+      #
+      h.add_service({:port=>port.number, :proto=>port.service.protocol, :service=>"#{port.service.to_s} #{port.service.extra_info}"})
+      if port.service.to_s.downcase.include? "ftp"
+        $logger.info "launching ftp scripts for #{host.ip}@#{port}"
+        Sniper::do_ftp_scan(host.ip, port)
       end
+
+      if port.service.to_s.downcase.include? "ssh"
+        $logger.info "launching ssh scripts for #{host.ip}@#{port}"
+        Sniper::do_ssh_scan(host.ip, port)
+      end
+
+      if port.service.to_s.downcase.include? "http"
+        $logger.info "launching http scripts for #{host.ip}@#{port}"
+        Sniper::do_http_scan(host.ip, port)
+      end
+      
     end
+    Sniper::do_report(h)
   end
 end
-  #nmap.script = "http-wordpress-enum.nse"
