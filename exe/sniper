@@ -1,11 +1,19 @@
 #!/usr/bin/env ruby
 
+require "logger"
+require "logger/colors"
 require "sniper"
 require "nmap"
 require "fileutils"
 
+$logger = Logger.new(STDOUT)
+$logger.datetime_format = '%Y-%m-%d %H:%M:%S'
+$logger.formatter = proc do |severity, datetime, progname, msg|
+  "#{datetime}: #{severity} - #{msg}\n"
+end
+
 if ARGV.count != 1
-  raise "usage: sniper ip"
+  $logger.error "usage: sniper ip"
   Kernel.exit -1
 end
 
